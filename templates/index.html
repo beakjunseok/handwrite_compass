@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-<title>키워드 필기장</title>
+<title>Handwrite Compass</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
 </head>
 <body>
 
 <div id="login-view" class="login-view hidden">
   <div class="login-box">
-    <h1>키워드 필기장</h1>
+    <h1>Handwrite Compass</h1>
     <p class="muted">아이디와 비밀번호로 나만의 필기장을 사용하세요.</p>
     <input id="auth-username" type="text" placeholder="아이디" autocomplete="username" />
     <input id="auth-password" type="password" placeholder="비밀번호" autocomplete="current-password" />
@@ -25,7 +25,7 @@
 <div id="app-view" class="app hidden">
   <aside class="sidebar">
     <div class="sidebar-top">
-      <h1>키워드 필기장</h1>
+      <h1>Handwrite Compass</h1>
       <button id="logout-btn" class="ghost small">로그아웃</button>
     </div>
     <button id="new-note-btn" class="primary">+ 새 필기</button>
@@ -78,6 +78,7 @@
           <input id="file-add-input" type="file" accept="application/pdf,image/*" multiple class="hidden" />
           <span id="file-add-status" class="status"></span>
         </div>
+        <div class="page-thumbs" id="page-thumbs"></div>
         <div class="canvas-viewport" id="canvas-viewport">
           <div class="canvas-stack" id="canvas-stack">
             <canvas id="bg-canvas" width="1000" height="1300"></canvas>

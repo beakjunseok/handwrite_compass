@@ -46,6 +46,7 @@ const pageIndicatorEl = document.getElementById("page-indicator");
 const zoomIndicatorEl = document.getElementById("zoom-indicator");
 const shapeAssistBtn = document.getElementById("shape-assist-btn");
 const selectionDeleteBtn = document.getElementById("selection-delete-btn");
+const pageThumbsEl = document.getElementById("page-thumbs");
 
 let activeNoteId = null;
 let currentMode = "text";
@@ -206,9 +207,23 @@ newNoteBtn.addEventListener("click", () => {
 
 // ---------- canvas toolbar ----------
 
+function renderThumbnails() {
+  const thumbs = NoteCanvas.getThumbnails();
+  const { index } = NoteCanvas.pageInfo();
+  pageThumbsEl.innerHTML = "";
+  thumbs.forEach((src, i) => {
+    const item = document.createElement("div");
+    item.className = "page-thumb" + (i === index ? " active" : "");
+    item.innerHTML = `<img src="${src}" /><span>${i + 1}</span>`;
+    item.addEventListener("click", () => NoteCanvas.goToPage(i));
+    pageThumbsEl.appendChild(item);
+  });
+}
+
 NoteCanvas.init(drawCanvasEl, bgCanvasEl, canvasViewportEl, {
   onPageChange: (index, total) => {
     pageIndicatorEl.textContent = `${index + 1} / ${total}`;
+    renderThumbnails();
   },
   onSelectionChange: (hasSelection) => {
     selectionDeleteBtn.classList.toggle("hidden", !hasSelection);
@@ -246,7 +261,10 @@ document.getElementById("page-add-btn").addEventListener("click", () => NoteCanv
 document.getElementById("zoom-in-btn").addEventListener("click", () => NoteCanvas.zoomIn());
 document.getElementById("zoom-out-btn").addEventListener("click", () => NoteCanvas.zoomOut());
 
-drawCanvasEl.addEventListener("pointerup", () => scheduleAutosave());
+drawCanvasEl.addEventListener("pointerup", () => {
+  scheduleAutosave();
+  renderThumbnails();
+});
 
 // ---------- file import (PDF / image as page background) ----------
 

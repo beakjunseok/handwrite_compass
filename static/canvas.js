@@ -563,6 +563,35 @@ const NoteCanvas = (() => {
     return { index: pageIndex, total: pages.length };
   }
 
+  function getThumbnails() {
+    const THUMB_W = 90;
+    const THUMB_H = Math.round(THUMB_W * (PAGE_H / PAGE_W));
+    const offscreen = document.createElement("canvas");
+    offscreen.width = THUMB_W;
+    offscreen.height = THUMB_H;
+    const octx = offscreen.getContext("2d");
+    const scale = THUMB_W / PAGE_W;
+
+    return pages.map((page) => {
+      octx.fillStyle = "#ffffff";
+      octx.fillRect(0, 0, THUMB_W, THUMB_H);
+      octx.save();
+      octx.scale(scale, scale);
+      if (page.bgImage) drawBackgroundImage(octx, page.bgImage);
+      page.strokes.forEach((stroke) => replayStroke(octx, stroke));
+      octx.restore();
+      return offscreen.toDataURL("image/png");
+    });
+  }
+
+  function goToPage(index) {
+    if (index < 0 || index >= pages.length) return;
+    pageIndex = index;
+    clearSelection();
+    redraw();
+    onPageChange(pageIndex, pages.length);
+  }
+
   return {
     init,
     setTool,
@@ -573,9 +602,11 @@ const NoteCanvas = (() => {
     addImagePage,
     prevPage,
     nextPage,
+    goToPage,
     reset,
     exportPages,
     pageInfo,
+    getThumbnails,
     hasContent,
     zoomIn,
     zoomOut,
