@@ -372,10 +372,26 @@ button.danger {
 }
 
 .tool-btn.active,
-#shape-assist-btn.active {
+#shape-assist-btn.active,
+.color-picker.active {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+.color-picker {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  overflow: hidden;
+  background: none;
+  cursor: pointer;
+}
+
+.color-picker::-webkit-color-swatch-wrapper { padding: 0; }
+.color-picker::-webkit-color-swatch { border: none; border-radius: 50%; }
+.color-picker::-moz-color-swatch { border: none; border-radius: 50%; }
 
 .canvas-toolbar .sep {
   width: 1px;

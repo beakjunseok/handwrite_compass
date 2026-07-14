@@ -233,11 +233,27 @@ NoteCanvas.init(drawCanvasEl, bgCanvasEl, canvasViewportEl, {
   },
 });
 
+function clearToolActiveState() {
+  document.querySelectorAll(".tool-btn, .color-picker").forEach((b) => b.classList.remove("active"));
+}
+
 document.querySelectorAll(".tool-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
-    document.querySelectorAll(".tool-btn").forEach((b) => b.classList.remove("active"));
+    clearToolActiveState();
     btn.classList.add("active");
     NoteCanvas.setTool(btn.dataset.tool, btn.dataset.color);
+    if (btn.dataset.eraseMode) NoteCanvas.setEraseMode(btn.dataset.eraseMode);
+  });
+});
+
+const penColorPicker = document.getElementById("pen-color-picker");
+const highlighterColorPicker = document.getElementById("highlighter-color-picker");
+
+[penColorPicker, highlighterColorPicker].forEach((picker) => {
+  picker.addEventListener("input", () => {
+    clearToolActiveState();
+    picker.classList.add("active");
+    NoteCanvas.setTool(picker.dataset.tool, picker.value);
   });
 });
 

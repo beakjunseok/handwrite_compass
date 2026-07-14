@@ -54,9 +54,14 @@
           <button class="tool-btn active" data-tool="pen" data-color="#1a1a1a" title="검정 펜">●</button>
           <button class="tool-btn" data-tool="pen" data-color="#e5615e" title="빨강 펜">●</button>
           <button class="tool-btn" data-tool="pen" data-color="#6d8dfc" title="파랑 펜">●</button>
+          <input id="pen-color-picker" class="color-picker" type="color" value="#1a1a1a" data-tool="pen" title="펜 색상 직접 선택" />
+          <span class="sep"></span>
           <button class="tool-btn hl" data-tool="highlighter" data-color="#ffd93d" title="노랑 형광펜">▮</button>
           <button class="tool-btn hl" data-tool="highlighter" data-color="#7ee787" title="초록 형광펜">▮</button>
-          <button class="tool-btn" data-tool="eraser" title="지우개">지우개</button>
+          <input id="highlighter-color-picker" class="color-picker" type="color" value="#ffd93d" data-tool="highlighter" title="형광펜 색상 직접 선택" />
+          <span class="sep"></span>
+          <button class="tool-btn" data-tool="eraser" data-erase-mode="partial" title="일부만 지우기">지우개</button>
+          <button class="tool-btn" data-tool="eraser" data-erase-mode="stroke" title="닿은 선 전체 지우기">선 지우개</button>
           <button class="tool-btn" data-tool="lasso" title="올가미(선택/이동)">올가미</button>
           <span class="sep"></span>
           <button id="shape-assist-btn" title="직선/원 자동 보정">도형보정</button>

@@ -9,6 +9,7 @@ const NoteCanvas = (() => {
   let pageIndex = 0;
   let tool = "pen";
   let color = "#1a1a1a";
+  let eraseMode = "partial"; // 'partial' | 'stroke'
   let shapeAssist = false;
   let drawing = false;
   let currentStroke = null;
@@ -164,6 +165,14 @@ const NoteCanvas = (() => {
       return;
     }
 
+    if (tool === "eraser" && eraseMode === "stroke") {
+      drawing = true;
+      currentStroke = null;
+      eraseStrokesNear(pt);
+      redraw();
+      return;
+    }
+
     drawing = true;
     currentStroke = {
       type: tool,
@@ -198,6 +207,13 @@ const NoteCanvas = (() => {
         redraw();
         drawLassoPath();
       }
+      return;
+    }
+
+    if (tool === "eraser" && eraseMode === "stroke") {
+      if (!drawing) return;
+      eraseStrokesNear(pt);
+      redraw();
       return;
     }
 
@@ -459,6 +475,36 @@ const NoteCanvas = (() => {
     redraw();
   }
 
+  function setEraseMode(mode) {
+    eraseMode = mode === "stroke" ? "stroke" : "partial";
+  }
+
+  function pointToSegmentDist(p, a, b) {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const lenSq = dx * dx + dy * dy;
+    if (lenSq === 0) return dist(p, a);
+    let t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq;
+    t = Math.max(0, Math.min(1, t));
+    return dist(p, { x: a.x + t * dx, y: a.y + t * dy });
+  }
+
+  function strokeNearPoint(stroke, pt, threshold) {
+    if (stroke.points.length === 1) return dist(stroke.points[0], pt) < threshold;
+    for (let i = 1; i < stroke.points.length; i++) {
+      if (pointToSegmentDist(pt, stroke.points[i - 1], stroke.points[i]) < threshold) return true;
+    }
+    return false;
+  }
+
+  function eraseStrokesNear(pt, radius = 16) {
+    const page = pages[pageIndex];
+    const remaining = page.strokes.filter((stroke) => !strokeNearPoint(stroke, pt, radius + stroke.width));
+    if (remaining.length !== page.strokes.length) {
+      page.strokes = remaining;
+    }
+  }
+
   function setShapeAssist(enabled) {
     shapeAssist = enabled;
   }
@@ -595,6 +641,7 @@ const NoteCanvas = (() => {
   return {
     init,
     setTool,
+    setEraseMode,
     setShapeAssist,
     undo,
     clearPage,
