@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>키워드 필기장</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+
+<div id="login-view" class="login-view hidden">
+  <div class="login-box">
+    <h1>키워드 필기장</h1>
+    <p class="muted">아이디와 비밀번호로 나만의 필기장을 사용하세요.</p>
+    <input id="auth-username" type="text" placeholder="아이디" autocomplete="username" />
+    <input id="auth-password" type="password" placeholder="비밀번호" autocomplete="current-password" />
+    <div class="actions">
+      <button id="login-btn" class="primary">로그인</button>
+      <button id="signup-btn">회원가입</button>
+    </div>
+    <p id="auth-error" class="status error"></p>
+  </div>
+</div>
+
+<div id="app-view" class="app hidden">
+  <aside class="sidebar">
+    <div class="sidebar-top">
+      <h1>키워드 필기장</h1>
+      <button id="logout-btn" class="ghost small">로그아웃</button>
+    </div>
+    <button id="new-note-btn" class="primary">+ 새 필기</button>
+    <input id="keyword-search" type="text" placeholder="키워드로 검색..." />
+    <div id="note-list" class="note-list"></div>
+  </aside>
+
+  <main class="main">
+    <section id="editor-view" class="view hidden">
+      <div class="mode-toggle">
+        <button id="mode-text-btn" class="mode-btn active" data-mode="text">텍스트</button>
+        <button id="mode-canvas-btn" class="mode-btn" data-mode="canvas">손글씨(캔버스)</button>
+      </div>
+
+      <input id="note-title" type="text" placeholder="제목 (선택)" />
+
+      <div id="text-editor">
+        <textarea id="note-content" placeholder="여기에 필기 내용을 입력하세요..." rows="16"></textarea>
+      </div>
+
+      <div id="canvas-editor" class="hidden">
+        <div class="canvas-toolbar">
+          <button class="tool-btn active" data-tool="pen" data-color="#1a1a1a" title="검정 펜">●</button>
+          <button class="tool-btn" data-tool="pen" data-color="#e5615e" title="빨강 펜">●</button>
+          <button class="tool-btn" data-tool="pen" data-color="#6d8dfc" title="파랑 펜">●</button>
+          <button class="tool-btn" data-tool="eraser" title="지우개">지우개</button>
+          <span class="sep"></span>
+          <button id="canvas-undo-btn" title="실행 취소">되돌리기</button>
+          <button id="canvas-clear-btn" title="페이지 지우기">페이지 지우기</button>
+          <span class="sep"></span>
+          <button id="page-prev-btn">◀</button>
+          <span id="page-indicator">1 / 1</span>
+          <button id="page-next-btn">▶</button>
+          <button id="page-add-btn">+ 페이지</button>
+        </div>
+        <div class="canvas-wrap">
+          <canvas id="draw-canvas" width="1000" height="1300"></canvas>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="save-note-btn" class="primary">저장 + AI 분석</button>
+        <span id="save-status" class="status"></span>
+      </div>
+    </section>
+
+    <section id="detail-view" class="view hidden">
+      <div class="detail-header">
+        <h2 id="detail-title"></h2>
+        <div class="actions">
+          <button id="quiz-btn">복습 퀴즈 생성</button>
+          <button id="delete-btn" class="danger">삭제</button>
+        </div>
+      </div>
+
+      <div class="keywords" id="detail-keywords"></div>
+
+      <h3>요약</h3>
+      <p id="detail-summary" class="summary"></p>
+
+      <div id="detail-pages" class="detail-pages"></div>
+
+      <h3 id="detail-content-heading">원문</h3>
+      <pre id="detail-content" class="content"></pre>
+
+      <div id="quiz-container"></div>
+    </section>
+
+    <section id="empty-view" class="view">
+      <p>왼쪽에서 필기를 선택하거나 새 필기를 작성하세요.</p>
+    </section>
+  </main>
+</div>
+
+<script src="{{ url_for('static', filename='canvas.js') }}"></script>
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
