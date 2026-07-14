@@ -60,6 +60,10 @@
           <span id="page-indicator">1 / 1</span>
           <button id="page-next-btn">▶</button>
           <button id="page-add-btn">+ 페이지</button>
+          <span class="sep"></span>
+          <button id="file-add-btn">📎 PDF/사진 추가</button>
+          <input id="file-add-input" type="file" accept="application/pdf,image/*" multiple class="hidden" />
+          <span id="file-add-status" class="status"></span>
         </div>
         <div class="canvas-wrap">
           <canvas id="draw-canvas" width="1000" height="1300"></canvas>
@@ -100,6 +104,13 @@
   </main>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.js"></script>
+<script>
+  if (window["pdfjsLib"]) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.js";
+  }
+</script>
 <script src="{{ url_for('static', filename='canvas.js') }}"></script>
 <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>

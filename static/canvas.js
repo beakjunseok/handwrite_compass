@@ -1,6 +1,6 @@
 const NoteCanvas = (() => {
   let canvas, ctx;
-  let pages = [{ strokes: [] }];
+  let pages = [{ strokes: [], bgImage: null }];
   let pageIndex = 0;
   let tool = "pen";
   let color = "#1a1a1a";
@@ -75,11 +75,21 @@ const NoteCanvas = (() => {
     ctx.stroke();
   }
 
+  function drawBackground(img) {
+    const scale = Math.min(canvas.width / img.width, canvas.height / img.height);
+    const w = img.width * scale;
+    const h = img.height * scale;
+    const x = (canvas.width - w) / 2;
+    const y = (canvas.height - h) / 2;
+    ctx.drawImage(img, x, y, w, h);
+  }
+
   function redraw() {
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    const strokes = pages[pageIndex].strokes;
-    strokes.forEach((stroke) => {
+    const page = pages[pageIndex];
+    if (page.bgImage) drawBackground(page.bgImage);
+    page.strokes.forEach((stroke) => {
       for (let i = 1; i < stroke.points.length; i++) {
         drawSegment(stroke.points[i - 1], stroke.points[i], stroke);
       }
@@ -102,8 +112,31 @@ const NoteCanvas = (() => {
   }
 
   function newPage() {
-    pages.push({ strokes: [] });
+    pages.push({ strokes: [], bgImage: null });
     pageIndex = pages.length - 1;
+    redraw();
+    onPageChange(pageIndex, pages.length);
+  }
+
+  function loadImage(dataUrl) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = dataUrl;
+    });
+  }
+
+  async function addImagePage(dataUrl) {
+    const img = await loadImage(dataUrl);
+    const isCurrentBlank = isBlankPage(pages[pageIndex]);
+    const targetPage = { strokes: [], bgImage: img };
+    if (isCurrentBlank) {
+      pages[pageIndex] = targetPage;
+    } else {
+      pages.push(targetPage);
+      pageIndex = pages.length - 1;
+    }
     redraw();
     onPageChange(pageIndex, pages.length);
   }
@@ -123,14 +156,14 @@ const NoteCanvas = (() => {
   }
 
   function reset() {
-    pages = [{ strokes: [] }];
+    pages = [{ strokes: [], bgImage: null }];
     pageIndex = 0;
     redraw();
     onPageChange(pageIndex, pages.length);
   }
 
   function isBlankPage(page) {
-    return page.strokes.length === 0;
+    return page.strokes.length === 0 && !page.bgImage;
   }
 
   function exportPages() {
@@ -157,6 +190,7 @@ const NoteCanvas = (() => {
     undo,
     clearPage,
     newPage,
+    addImagePage,
     prevPage,
     nextPage,
     reset,

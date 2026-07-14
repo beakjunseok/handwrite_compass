@@ -206,6 +206,62 @@ document.getElementById("page-prev-btn").addEventListener("click", () => NoteCan
 document.getElementById("page-next-btn").addEventListener("click", () => NoteCanvas.nextPage());
 document.getElementById("page-add-btn").addEventListener("click", () => NoteCanvas.newPage());
 
+// ---------- file import (PDF / image as page background) ----------
+
+const fileAddBtn = document.getElementById("file-add-btn");
+const fileAddInput = document.getElementById("file-add-input");
+const fileAddStatusEl = document.getElementById("file-add-status");
+
+fileAddBtn.addEventListener("click", () => fileAddInput.click());
+
+fileAddInput.addEventListener("change", async () => {
+  const files = Array.from(fileAddInput.files || []);
+  fileAddInput.value = "";
+  if (files.length === 0) return;
+
+  fileAddBtn.disabled = true;
+  for (const file of files) {
+    fileAddStatusEl.textContent = `${file.name} 불러오는 중...`;
+    try {
+      if (file.type === "application/pdf") {
+        await importPdf(file);
+      } else if (file.type.startsWith("image/")) {
+        const dataUrl = await readFileAsDataUrl(file);
+        await NoteCanvas.addImagePage(dataUrl);
+      }
+    } catch (err) {
+      fileAddStatusEl.textContent = `오류: ${file.name} 불러오기 실패`;
+      console.error(err);
+    }
+  }
+  fileAddStatusEl.textContent = "";
+  fileAddBtn.disabled = false;
+});
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function importPdf(file) {
+  const buffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+  for (let i = 1; i <= pdf.numPages; i++) {
+    fileAddStatusEl.textContent = `${file.name} - ${i}/${pdf.numPages} 페이지 렌더링 중...`;
+    const page = await pdf.getPage(i);
+    const viewport = page.getViewport({ scale: 2 });
+    const tempCanvas = document.createElement("canvas");
+    tempCanvas.width = viewport.width;
+    tempCanvas.height = viewport.height;
+    await page.render({ canvasContext: tempCanvas.getContext("2d"), viewport }).promise;
+    await NoteCanvas.addImagePage(tempCanvas.toDataURL("image/png"));
+  }
+}
+
 // ---------- save note ----------
 
 saveNoteBtn.addEventListener("click", async () => {
