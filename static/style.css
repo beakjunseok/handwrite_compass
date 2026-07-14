@@ -201,6 +201,62 @@ button.danger {
   cursor: pointer;
 }
 
+.favorite-filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.tags-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 4px 0 10px;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tag-chip {
+  background: rgba(255, 217, 61, 0.12);
+  color: #ffd93d;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: default;
+}
+
+.tag-chip .x {
+  cursor: pointer;
+  margin-left: 2px;
+  opacity: 0.7;
+}
+
+.tag-chip .x:hover { opacity: 1; }
+
+#tag-input {
+  background: transparent;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  color: var(--text);
+  font-size: 12px;
+  width: 160px;
+}
+
+#favorite-btn {
+  font-size: 18px;
+  line-height: 1;
+  color: #ffd93d;
+}
+
 .summary {
   background: var(--panel);
   border: 1px solid var(--border);
@@ -300,8 +356,23 @@ button.danger {
 .tool-btn[data-color="#1a1a1a"] { color: #1a1a1a; background: #1a1a1a; }
 .tool-btn[data-color="#e5615e"] { color: #e5615e; background: #e5615e; }
 .tool-btn[data-color="#6d8dfc"] { color: #6d8dfc; background: #6d8dfc; }
+.tool-btn[data-color="#ffd93d"] { color: #ffd93d; background: #ffd93d; }
+.tool-btn[data-color="#7ee787"] { color: #7ee787; background: #7ee787; }
 
-.tool-btn.active {
+.tool-btn.hl {
+  border-radius: 6px;
+  opacity: 0.75;
+}
+
+.tool-btn[data-tool="eraser"],
+.tool-btn[data-tool="lasso"] {
+  width: auto;
+  border-radius: 8px;
+  padding: 0 10px;
+}
+
+.tool-btn.active,
+#shape-assist-btn.active {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
@@ -313,26 +384,52 @@ button.danger {
   margin: 0 4px;
 }
 
-#page-indicator {
+#page-indicator,
+#zoom-indicator {
   font-size: 13px;
   color: var(--muted);
   min-width: 50px;
   text-align: center;
 }
 
-.canvas-wrap {
-  background: #fff;
+#zoom-out-btn,
+#zoom-in-btn {
+  width: 30px;
+  padding: 0;
+}
+
+.canvas-viewport {
+  background: #e9e9ee;
   border-radius: 8px;
-  overflow: hidden;
   border: 1px solid var(--border);
-  touch-action: none;
-  max-width: 100%;
+  overflow: auto;
+  max-height: 70vh;
+  padding: 16px;
+}
+
+.canvas-stack {
+  position: relative;
+  width: 700px;
+  height: 910px;
+  margin: 0 auto;
+}
+
+#bg-canvas,
+#draw-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+#bg-canvas {
+  border-radius: 4px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
 }
 
 #draw-canvas {
-  display: block;
-  width: 100%;
-  height: auto;
   touch-action: none;
   cursor: crosshair;
 }

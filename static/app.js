@@ -9,6 +9,7 @@ const logoutBtn = document.getElementById("logout-btn");
 
 const noteListEl = document.getElementById("note-list");
 const keywordSearchEl = document.getElementById("keyword-search");
+const favoriteFilterCb = document.getElementById("favorite-filter-cb");
 const newNoteBtn = document.getElementById("new-note-btn");
 
 const editorView = document.getElementById("editor-view");
@@ -31,15 +32,26 @@ const detailSummaryEl = document.getElementById("detail-summary");
 const detailContentEl = document.getElementById("detail-content");
 const detailContentHeadingEl = document.getElementById("detail-content-heading");
 const detailPagesEl = document.getElementById("detail-pages");
+const detailTagsEl = document.getElementById("detail-tags");
+const tagInputEl = document.getElementById("tag-input");
+const favoriteBtn = document.getElementById("favorite-btn");
 const quizBtn = document.getElementById("quiz-btn");
 const deleteBtn = document.getElementById("delete-btn");
 const quizContainer = document.getElementById("quiz-container");
 
 const drawCanvasEl = document.getElementById("draw-canvas");
+const bgCanvasEl = document.getElementById("bg-canvas");
+const canvasViewportEl = document.getElementById("canvas-viewport");
 const pageIndicatorEl = document.getElementById("page-indicator");
+const zoomIndicatorEl = document.getElementById("zoom-indicator");
+const shapeAssistBtn = document.getElementById("shape-assist-btn");
+const selectionDeleteBtn = document.getElementById("selection-delete-btn");
 
 let activeNoteId = null;
 let currentMode = "text";
+let editingNoteId = null; // note created during this editor session (for autosave)
+let currentNote = null; // last note rendered in detail view
+let autosaveTimer = null;
 
 // ---------- auth ----------
 
@@ -122,8 +134,12 @@ function showView(view) {
   view.classList.remove("hidden");
 }
 
-async function fetchNotes(keyword = "") {
-  const url = keyword ? `/api/notes?keyword=${encodeURIComponent(keyword)}` : "/api/notes";
+async function fetchNotes() {
+  const params = new URLSearchParams();
+  const q = keywordSearchEl.value.trim();
+  if (q) params.set("q", q);
+  if (favoriteFilterCb.checked) params.set("favorite", "1");
+  const url = params.toString() ? `/api/notes?${params}` : "/api/notes";
   const res = await apiFetch(url);
   if (!res.ok) return [];
   return res.json();
@@ -135,8 +151,9 @@ function renderNoteList(notes) {
     const item = document.createElement("div");
     item.className = "note-item" + (note.id === activeNoteId ? " active" : "");
     const icon = note.note_type === "canvas" ? "✍️ " : "";
+    const star = note.is_favorite ? "⭐ " : "";
     item.innerHTML = `
-      <div class="title">${icon}${escapeHtml(note.title)}</div>
+      <div class="title">${star}${icon}${escapeHtml(note.title)}</div>
       <div class="kw">${(note.keywords || []).slice(0, 4).join(", ")}</div>
     `;
     item.addEventListener("click", () => openNote(note.id));
@@ -146,7 +163,7 @@ function renderNoteList(notes) {
 
 async function refreshList() {
   try {
-    const notes = await fetchNotes(keywordSearchEl.value.trim());
+    const notes = await fetchNotes();
     renderNoteList(notes);
   } catch (err) {
     /* handled by apiFetch redirect */
@@ -160,6 +177,7 @@ function escapeHtml(str) {
 }
 
 keywordSearchEl.addEventListener("input", () => refreshList());
+favoriteFilterCb.addEventListener("change", () => refreshList());
 
 // ---------- editor: mode switching ----------
 
@@ -176,6 +194,8 @@ modeCanvasBtn.addEventListener("click", () => setMode("canvas"));
 
 newNoteBtn.addEventListener("click", () => {
   activeNoteId = null;
+  editingNoteId = null;
+  clearTimeout(autosaveTimer);
   noteTitleEl.value = "";
   noteContentEl.value = "";
   saveStatusEl.textContent = "";
@@ -186,9 +206,15 @@ newNoteBtn.addEventListener("click", () => {
 
 // ---------- canvas toolbar ----------
 
-NoteCanvas.init(drawCanvasEl, {
+NoteCanvas.init(drawCanvasEl, bgCanvasEl, canvasViewportEl, {
   onPageChange: (index, total) => {
     pageIndicatorEl.textContent = `${index + 1} / ${total}`;
+  },
+  onSelectionChange: (hasSelection) => {
+    selectionDeleteBtn.classList.toggle("hidden", !hasSelection);
+  },
+  onZoomChange: (zoom) => {
+    zoomIndicatorEl.textContent = `${Math.round(zoom * 100)}%`;
   },
 });
 
@@ -200,11 +226,27 @@ document.querySelectorAll(".tool-btn").forEach((btn) => {
   });
 });
 
+shapeAssistBtn.addEventListener("click", () => {
+  const enabled = !shapeAssistBtn.classList.contains("active");
+  shapeAssistBtn.classList.toggle("active", enabled);
+  NoteCanvas.setShapeAssist(enabled);
+});
+
+selectionDeleteBtn.addEventListener("click", () => {
+  NoteCanvas.deleteSelection();
+  selectionDeleteBtn.classList.add("hidden");
+});
+
 document.getElementById("canvas-undo-btn").addEventListener("click", () => NoteCanvas.undo());
 document.getElementById("canvas-clear-btn").addEventListener("click", () => NoteCanvas.clearPage());
 document.getElementById("page-prev-btn").addEventListener("click", () => NoteCanvas.prevPage());
 document.getElementById("page-next-btn").addEventListener("click", () => NoteCanvas.nextPage());
 document.getElementById("page-add-btn").addEventListener("click", () => NoteCanvas.newPage());
+
+document.getElementById("zoom-in-btn").addEventListener("click", () => NoteCanvas.zoomIn());
+document.getElementById("zoom-out-btn").addEventListener("click", () => NoteCanvas.zoomOut());
+
+drawCanvasEl.addEventListener("pointerup", () => scheduleAutosave());
 
 // ---------- file import (PDF / image as page background) ----------
 
@@ -236,6 +278,7 @@ fileAddInput.addEventListener("change", async () => {
   }
   fileAddStatusEl.textContent = "";
   fileAddBtn.disabled = false;
+  scheduleAutosave();
 });
 
 function readFileAsDataUrl(file) {
@@ -262,44 +305,78 @@ async function importPdf(file) {
   }
 }
 
-// ---------- save note ----------
+// ---------- save + autosave ----------
 
-saveNoteBtn.addEventListener("click", async () => {
-  saveNoteBtn.disabled = true;
-
+async function saveNote({ silent = false } = {}) {
   let body;
   if (currentMode === "canvas") {
-    const pages = NoteCanvas.exportPages();
-    if (pages.length === 0) {
-      saveStatusEl.textContent = "먼저 필기를 작성하세요.";
-      saveNoteBtn.disabled = false;
+    if (!NoteCanvas.hasContent()) {
+      if (!silent) saveStatusEl.textContent = "먼저 필기를 작성하세요.";
       return;
     }
-    body = { title: noteTitleEl.value.trim(), note_type: "canvas", pages };
-    saveStatusEl.textContent = "AI가 손글씨를 읽고 분석하는 중...";
+    body = { title: noteTitleEl.value.trim(), note_type: "canvas", pages: NoteCanvas.exportPages() };
   } else {
     const content = noteContentEl.value.trim();
     if (!content) {
-      saveStatusEl.textContent = "내용을 입력하세요.";
-      saveNoteBtn.disabled = false;
+      if (!silent) saveStatusEl.textContent = "내용을 입력하세요.";
       return;
     }
     body = { title: noteTitleEl.value.trim(), note_type: "text", content };
-    saveStatusEl.textContent = "AI가 키워드/요약을 생성하는 중...";
   }
+  if (editingNoteId) body.id = editingNoteId;
 
+  if (!silent) saveStatusEl.textContent = "AI가 분석하는 중...";
   try {
     const res = await apiFetch("/api/notes", { method: "POST", body: JSON.stringify(body) });
     if (!res.ok) throw new Error((await res.json()).error || "저장 실패");
     const note = await res.json();
-    saveStatusEl.textContent = "저장 완료!";
+    editingNoteId = note.id;
     await refreshList();
-    openNote(note.id);
+    if (silent) {
+      saveStatusEl.textContent = `자동 저장됨 (${new Date().toLocaleTimeString()})`;
+    } else {
+      saveStatusEl.textContent = "저장 완료!";
+      openNote(note.id);
+    }
   } catch (err) {
     saveStatusEl.textContent = "오류: " + err.message;
-  } finally {
-    saveNoteBtn.disabled = false;
   }
+}
+
+async function rawAutosaveUpdate() {
+  const body = {};
+  if (currentMode === "canvas") {
+    if (!NoteCanvas.hasContent()) return;
+    body.pages = NoteCanvas.exportPages();
+  } else {
+    const content = noteContentEl.value.trim();
+    if (!content) return;
+    body.content = content;
+  }
+  try {
+    await apiFetch(`/api/notes/${editingNoteId}`, { method: "PUT", body: JSON.stringify(body) });
+    saveStatusEl.textContent = `자동 저장됨 (${new Date().toLocaleTimeString()})`;
+  } catch (err) {
+    /* ignore autosave errors */
+  }
+}
+
+function scheduleAutosave() {
+  clearTimeout(autosaveTimer);
+  autosaveTimer = setTimeout(() => {
+    if (editingNoteId) {
+      rawAutosaveUpdate();
+    } else {
+      saveNote({ silent: true });
+    }
+  }, 4000);
+}
+
+noteContentEl.addEventListener("input", () => scheduleAutosave());
+
+saveNoteBtn.addEventListener("click", () => {
+  clearTimeout(autosaveTimer);
+  saveNote({ silent: false });
 });
 
 // ---------- detail view ----------
@@ -315,8 +392,10 @@ async function openNote(noteId) {
 }
 
 function renderDetail(note) {
+  currentNote = note;
   detailTitleEl.textContent = note.title;
   detailSummaryEl.textContent = note.summary || "(요약 없음)";
+  favoriteBtn.textContent = note.is_favorite ? "★" : "☆";
 
   detailPagesEl.innerHTML = "";
   if (note.note_type === "canvas" && note.pages) {
@@ -342,8 +421,72 @@ function renderDetail(note) {
     });
     detailKeywordsEl.appendChild(chip);
   });
+
+  renderTags(note.tags || []);
   quizContainer.innerHTML = "";
 }
+
+function renderTags(tags) {
+  detailTagsEl.innerHTML = "";
+  tags.forEach((tag) => {
+    const chip = document.createElement("span");
+    chip.className = "tag-chip";
+    chip.innerHTML = `${escapeHtml(tag)} <span class="x">×</span>`;
+    chip.querySelector(".x").addEventListener("click", async () => {
+      const newTags = tags.filter((t) => t !== tag);
+      const ok = await saveNoteField({ tags: newTags });
+      if (!ok) return;
+      currentNote.tags = newTags;
+      renderTags(newTags);
+    });
+    chip.addEventListener("click", (e) => {
+      if (e.target.classList.contains("x")) return;
+      keywordSearchEl.value = "";
+      refreshList();
+    });
+    detailTagsEl.appendChild(chip);
+  });
+}
+
+async function saveNoteField(fields) {
+  try {
+    const res = await apiFetch(`/api/notes/${activeNoteId}`, {
+      method: "PUT",
+      body: JSON.stringify(fields),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert("저장 실패: " + (err.error || res.status));
+      return false;
+    }
+    return true;
+  } catch (err) {
+    alert("저장 실패: " + err.message);
+    return false;
+  }
+}
+
+tagInputEl.addEventListener("keydown", async (e) => {
+  if (e.key !== "Enter") return;
+  const tag = tagInputEl.value.trim();
+  if (!tag || !currentNote) return;
+  const newTags = Array.from(new Set([...(currentNote.tags || []), tag]));
+  const ok = await saveNoteField({ tags: newTags });
+  if (!ok) return;
+  tagInputEl.value = "";
+  currentNote.tags = newTags;
+  renderTags(newTags);
+});
+
+favoriteBtn.addEventListener("click", async () => {
+  if (!currentNote) return;
+  const newValue = !currentNote.is_favorite;
+  const ok = await saveNoteField({ is_favorite: newValue });
+  if (!ok) return;
+  favoriteBtn.textContent = newValue ? "★" : "☆";
+  currentNote.is_favorite = newValue;
+  refreshList();
+});
 
 deleteBtn.addEventListener("click", async () => {
   if (!activeNoteId) return;

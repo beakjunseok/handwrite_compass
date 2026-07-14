@@ -29,7 +29,10 @@
       <button id="logout-btn" class="ghost small">로그아웃</button>
     </div>
     <button id="new-note-btn" class="primary">+ 새 필기</button>
-    <input id="keyword-search" type="text" placeholder="키워드로 검색..." />
+    <input id="keyword-search" type="text" placeholder="검색 (내용, 손글씨, 키워드)..." />
+    <label class="favorite-filter">
+      <input id="favorite-filter-cb" type="checkbox" /> ⭐ 즐겨찾기만 보기
+    </label>
     <div id="note-list" class="note-list"></div>
   </aside>
 
@@ -51,7 +54,13 @@
           <button class="tool-btn active" data-tool="pen" data-color="#1a1a1a" title="검정 펜">●</button>
           <button class="tool-btn" data-tool="pen" data-color="#e5615e" title="빨강 펜">●</button>
           <button class="tool-btn" data-tool="pen" data-color="#6d8dfc" title="파랑 펜">●</button>
+          <button class="tool-btn hl" data-tool="highlighter" data-color="#ffd93d" title="노랑 형광펜">▮</button>
+          <button class="tool-btn hl" data-tool="highlighter" data-color="#7ee787" title="초록 형광펜">▮</button>
           <button class="tool-btn" data-tool="eraser" title="지우개">지우개</button>
+          <button class="tool-btn" data-tool="lasso" title="올가미(선택/이동)">올가미</button>
+          <span class="sep"></span>
+          <button id="shape-assist-btn" title="직선/원 자동 보정">도형보정</button>
+          <button id="selection-delete-btn" class="danger hidden" title="선택 삭제">선택 삭제</button>
           <span class="sep"></span>
           <button id="canvas-undo-btn" title="실행 취소">되돌리기</button>
           <button id="canvas-clear-btn" title="페이지 지우기">페이지 지우기</button>
@@ -61,12 +70,19 @@
           <button id="page-next-btn">▶</button>
           <button id="page-add-btn">+ 페이지</button>
           <span class="sep"></span>
+          <button id="zoom-out-btn" title="축소">−</button>
+          <span id="zoom-indicator">100%</span>
+          <button id="zoom-in-btn" title="확대">+</button>
+          <span class="sep"></span>
           <button id="file-add-btn">📎 PDF/사진 추가</button>
           <input id="file-add-input" type="file" accept="application/pdf,image/*" multiple class="hidden" />
           <span id="file-add-status" class="status"></span>
         </div>
-        <div class="canvas-wrap">
-          <canvas id="draw-canvas" width="1000" height="1300"></canvas>
+        <div class="canvas-viewport" id="canvas-viewport">
+          <div class="canvas-stack" id="canvas-stack">
+            <canvas id="bg-canvas" width="1000" height="1300"></canvas>
+            <canvas id="draw-canvas" width="1000" height="1300"></canvas>
+          </div>
         </div>
       </div>
 
@@ -80,12 +96,18 @@
       <div class="detail-header">
         <h2 id="detail-title"></h2>
         <div class="actions">
+          <button id="favorite-btn" class="ghost" title="즐겨찾기">☆</button>
           <button id="quiz-btn">복습 퀴즈 생성</button>
           <button id="delete-btn" class="danger">삭제</button>
         </div>
       </div>
 
       <div class="keywords" id="detail-keywords"></div>
+
+      <div class="tags-row">
+        <div class="tags" id="detail-tags"></div>
+        <input id="tag-input" type="text" placeholder="+ 태그 추가 후 Enter" />
+      </div>
 
       <h3>요약</h3>
       <p id="detail-summary" class="summary"></p>

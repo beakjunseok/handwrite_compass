@@ -109,9 +109,19 @@ def list_notes():
     if not user:
         return jsonify({"error": "로그인이 필요합니다"}), 401
     keyword = request.args.get("keyword", "").strip()
+    q = request.args.get("q", "").strip()
+    tag = request.args.get("tag", "").strip()
+    favorite_only = request.args.get("favorite") == "1"
+
     query = client.table("notes").select("*").order("created_at", desc=True)
     if keyword:
         query = query.contains("keywords", [keyword])
+    if tag:
+        query = query.contains("tags", [tag])
+    if favorite_only:
+        query = query.eq("is_favorite", True)
+    if q:
+        query = query.or_(f"content.ilike.%{q}%,title.ilike.%{q}%")
     res = query.execute()
     return jsonify(res.data)
 
@@ -125,6 +135,7 @@ def create_note():
     data = request.get_json(force=True)
     title = (data.get("title") or "").strip()
     note_type = data.get("note_type") or "text"
+    existing_id = data.get("id")
 
     if note_type == "canvas":
         pages = data.get("pages") or []
@@ -138,7 +149,6 @@ def create_note():
             "summary": analysis.get("summary", ""),
             "note_type": "canvas",
             "pages": pages,
-            "user_id": user.id,
         }
     else:
         content = (data.get("content") or "").strip()
@@ -151,9 +161,15 @@ def create_note():
             "keywords": analysis.get("keywords", []),
             "summary": analysis.get("summary", ""),
             "note_type": "text",
-            "user_id": user.id,
         }
 
+    if existing_id:
+        res = client.table("notes").update(row).eq("id", existing_id).execute()
+        if not res.data:
+            return jsonify({"error": "note not found"}), 404
+        return jsonify(res.data[0])
+
+    row["user_id"] = user.id
     res = client.table("notes").insert(row).execute()
     return jsonify(res.data[0]), 201
 
@@ -165,6 +181,34 @@ def get_note(note_id):
         return jsonify({"error": "로그인이 필요합니다"}), 401
     res = client.table("notes").select("*").eq("id", note_id).single().execute()
     return jsonify(res.data)
+
+
+@app.route("/api/notes/<note_id>", methods=["PUT"])
+def update_note(note_id):
+    """Lightweight raw update (autosave, tags, favorite) that skips the Gemini analysis step."""
+    client, user = authed_client()
+    if not user:
+        return jsonify({"error": "로그인이 필요합니다"}), 401
+
+    data = request.get_json(force=True)
+    row = {}
+    if "title" in data:
+        row["title"] = (data.get("title") or "").strip() or "제목 없음"
+    if "content" in data:
+        row["content"] = data.get("content") or ""
+    if "pages" in data:
+        row["pages"] = data.get("pages")
+    if "tags" in data:
+        row["tags"] = data.get("tags") or []
+    if "is_favorite" in data:
+        row["is_favorite"] = bool(data.get("is_favorite"))
+    if not row:
+        return jsonify({"error": "no fields to update"}), 400
+
+    res = client.table("notes").update(row).eq("id", note_id).execute()
+    if not res.data:
+        return jsonify({"error": "note not found"}), 404
+    return jsonify(res.data[0])
 
 
 @app.route("/api/notes/<note_id>", methods=["DELETE"])
