@@ -53,6 +53,7 @@ let currentMode = "text";
 let editingNoteId = null; // note created during this editor session (for autosave)
 let currentNote = null; // last note rendered in detail view
 let autosaveTimer = null;
+let pdfTextBuffer = ""; // text extracted from imported PDFs, sent alongside page images for AI analysis
 
 // ---------- auth ----------
 
@@ -196,6 +197,7 @@ modeCanvasBtn.addEventListener("click", () => setMode("canvas"));
 newNoteBtn.addEventListener("click", () => {
   activeNoteId = null;
   editingNoteId = null;
+  pdfTextBuffer = "";
   clearTimeout(autosaveTimer);
   noteTitleEl.value = "";
   noteContentEl.value = "";
@@ -336,6 +338,12 @@ async function importPdf(file) {
     tempCanvas.height = viewport.height;
     await page.render({ canvasContext: tempCanvas.getContext("2d"), viewport }).promise;
     await NoteCanvas.addImagePage(tempCanvas.toDataURL("image/png"));
+
+    const textContent = await page.getTextContent();
+    const pageText = textContent.items.map((item) => item.str).join(" ").trim();
+    if (pageText) {
+      pdfTextBuffer += (pdfTextBuffer ? "\n\n" : "") + `[${file.name} p.${i}]\n${pageText}`;
+    }
   }
 }
 
@@ -348,7 +356,12 @@ async function saveNote({ silent = false } = {}) {
       if (!silent) saveStatusEl.textContent = "먼저 필기를 작성하세요.";
       return;
     }
-    body = { title: noteTitleEl.value.trim(), note_type: "canvas", pages: NoteCanvas.exportPages() };
+    body = {
+      title: noteTitleEl.value.trim(),
+      note_type: "canvas",
+      pages: NoteCanvas.exportPages(),
+      pdf_text: pdfTextBuffer,
+    };
   } else {
     const content = noteContentEl.value.trim();
     if (!content) {

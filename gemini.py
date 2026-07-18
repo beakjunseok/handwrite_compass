@@ -49,10 +49,17 @@ keywords는 5~8개, 핵심 개념 위주로 뽑아줘. 다른 텍스트 없이 J
     return _call(prompt)
 
 
-def analyze_note_image(data_urls: list) -> dict:
-    prompt = """이 손글씨 필기 이미지(들)를 읽고 분석해서 JSON으로만 답해줘.
-형식: {"title": "간단한 제목", "keywords": ["키워드1", "키워드2"], "summary": "3~5문장 요약", "recognized_text": "인식된 필기 내용 전체 텍스트"}
+def analyze_note_image(data_urls: list, extra_text: str = "") -> dict:
+    prompt = """이 필기 이미지(들)를 읽고 분석해서 JSON으로만 답해줘.
+형식: {"title": "간단한 제목", "keywords": ["키워드1", "키워드2"], "summary": "3~5문장 요약", "recognized_text": "인식된 필기/문서 내용 전체 텍스트"}
+이미지에는 손글씨뿐 아니라 PDF/인쇄 문서 페이지가 배경으로 포함될 수 있어. 배경 문서 내용과 그 위에 손으로 쓴 필기를 모두 종합해서 분석해줘.
 keywords는 5~8개, 핵심 개념 위주로 뽑아줘. 여러 페이지면 순서대로 이어서 recognized_text를 작성해줘. 다른 텍스트 없이 JSON만 출력해."""
+    if extra_text.strip():
+        prompt += f"""
+
+참고로 이미지 속 PDF 페이지에서 미리 추출한 원문 텍스트야 (정확도 높음, 손글씨 인식에는 도움 안 됨):
+{extra_text.strip()[:8000]}
+"""
     parts = [{"text": prompt}] + _image_parts(data_urls)
     return _call_parts(parts, timeout=60)
 

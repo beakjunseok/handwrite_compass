@@ -141,7 +141,8 @@ def create_note():
         pages = data.get("pages") or []
         if not pages:
             return jsonify({"error": "pages is required for canvas notes"}), 400
-        analysis = gemini.analyze_note_image(pages)
+        pdf_text = data.get("pdf_text") or ""
+        analysis = gemini.analyze_note_image(pages, extra_text=pdf_text)
         row = {
             "title": title or analysis.get("title") or "제목 없음",
             "content": analysis.get("recognized_text", ""),

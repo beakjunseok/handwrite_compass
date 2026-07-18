@@ -426,6 +426,56 @@ const NoteCanvas = (() => {
 
   // ---------- shape auto-correction ----------
 
+  function rdpSimplify(points, epsilon) {
+    if (points.length < 3) return points;
+    let maxDist = 0;
+    let index = 0;
+    const start = points[0];
+    const end = points[points.length - 1];
+    for (let i = 1; i < points.length - 1; i++) {
+      const d = pointToSegmentDist(points[i], start, end);
+      if (d > maxDist) {
+        maxDist = d;
+        index = i;
+      }
+    }
+    if (maxDist > epsilon) {
+      const left = rdpSimplify(points.slice(0, index + 1), epsilon);
+      const right = rdpSimplify(points.slice(index), epsilon);
+      return left.slice(0, -1).concat(right);
+    }
+    return [start, end];
+  }
+
+  function catmullRomSpline(points, segmentsPerPiece = 12) {
+    if (points.length < 3) return points;
+    const pad = [points[0], ...points, points[points.length - 1]];
+    const result = [];
+    for (let i = 1; i < pad.length - 2; i++) {
+      const p0 = pad[i - 1], p1 = pad[i], p2 = pad[i + 1], p3 = pad[i + 2];
+      for (let t = 0; t < segmentsPerPiece; t++) {
+        const tt = t / segmentsPerPiece;
+        const tt2 = tt * tt;
+        const tt3 = tt2 * tt;
+        const x =
+          0.5 *
+          (2 * p1.x + (-p0.x + p2.x) * tt + (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * tt2 +
+            (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * tt3);
+        const y =
+          0.5 *
+          (2 * p1.y + (-p0.y + p2.y) * tt + (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * tt2 +
+            (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * tt3);
+        result.push({ x, y, pressure: p1.pressure });
+      }
+    }
+    result.push(points[points.length - 1]);
+    return result;
+  }
+
+  function polygonFromCorners(corners) {
+    return [...corners, { ...corners[0] }];
+  }
+
   function autoCorrectShape(points) {
     if (points.length < 6) return points;
     const start = points[0];
@@ -434,6 +484,7 @@ const NoteCanvas = (() => {
     for (let i = 1; i < points.length; i++) pathLen += dist(points[i - 1], points[i]);
     const straightDist = dist(start, end);
 
+    // straight line
     if (pathLen > 0 && straightDist / pathLen > 0.93) {
       return [start, { ...end, pressure: start.pressure }];
     }
@@ -444,8 +495,19 @@ const NoteCanvas = (() => {
     const bboxH = Math.max(...ys) - Math.min(...ys);
     const diag = Math.hypot(bboxW, bboxH);
     const closeGap = dist(start, end);
+    const isClosed = diag > 20 && closeGap < diag * 0.3;
 
-    if (diag > 20 && closeGap < diag * 0.3) {
+    if (isClosed) {
+      // Corner count decides polygon vs. circle: a hand-drawn circle/ellipse won't collapse to
+      // 3-4 dominant vertices under RDP simplification, but a triangle/rectangle will.
+      const simplified = rdpSimplify(points, diag * 0.06);
+      const cornerCount = simplified.length - 1; // start and end coincide
+
+      if (cornerCount === 3 || cornerCount === 4) {
+        return polygonFromCorners(simplified.slice(0, cornerCount));
+      }
+
+      // circle / ellipse
       const cx = xs.reduce((a, b) => a + b, 0) / xs.length;
       const cy = ys.reduce((a, b) => a + b, 0) / ys.length;
       const radii = points.map((p) => Math.hypot(p.x - cx, p.y - cy));
@@ -461,6 +523,12 @@ const NoteCanvas = (() => {
         }
         return circlePts;
       }
+    }
+
+    // open curve smoothing
+    const simplifiedOpen = rdpSimplify(points, diag * 0.02);
+    if (simplifiedOpen.length >= 3) {
+      return catmullRomSpline(simplifiedOpen);
     }
 
     return points;
@@ -540,12 +608,12 @@ const NoteCanvas = (() => {
 
   async function addImagePage(dataUrl) {
     const img = await loadImage(dataUrl);
-    const isCurrentBlank = isBlankPage(pages[pageIndex]);
-    const targetPage = { strokes: [], bgImage: img };
-    if (isCurrentBlank) {
-      pages[pageIndex] = targetPage;
+    const current = pages[pageIndex];
+    if (!current.bgImage) {
+      // Merge onto the current page so any existing drawing stays on top of the new background.
+      current.bgImage = img;
     } else {
-      pages.push(targetPage);
+      pages.push({ strokes: [], bgImage: img });
       pageIndex = pages.length - 1;
     }
     clearSelection();
