@@ -11,6 +11,7 @@ const NoteCanvas = (() => {
   let color = "#1a1a1a";
   let eraseMode = "partial"; // 'partial' | 'stroke'
   let shapeAssist = false;
+  let shapeStrength = 0.5; // 0 = light touch-up, 1 = aggressive snapping
   let drawing = false;
   let currentStroke = null;
   let lassoPoints = null;
@@ -476,8 +477,25 @@ const NoteCanvas = (() => {
     return [...corners, { ...corners[0] }];
   }
 
+  function lerp(a, b, t) {
+    return a + (b - a) * t;
+  }
+
+  // shapeStrength in [0,1]: 0 = only snap near-perfect shapes, 1 = snap aggressively.
+  function shapeThresholds() {
+    const s = shapeStrength;
+    return {
+      straightRatio: lerp(0.99, 0.85, s), // lower = easier to count as a straight line
+      cornerEpsilonFactor: lerp(0.03, 0.1, s), // higher = corners found more readily
+      circleTolerance: lerp(0.15, 0.4, s), // higher = looser circle match
+      closedGapFactor: lerp(0.15, 0.45, s), // higher = more paths count as "closed"
+      curveEpsilonFactor: lerp(0.008, 0.035, s), // higher = more aggressive curve smoothing
+    };
+  }
+
   function autoCorrectShape(points) {
     if (points.length < 6) return points;
+    const t = shapeThresholds();
     const start = points[0];
     const end = points[points.length - 1];
     let pathLen = 0;
@@ -485,7 +503,7 @@ const NoteCanvas = (() => {
     const straightDist = dist(start, end);
 
     // straight line
-    if (pathLen > 0 && straightDist / pathLen > 0.93) {
+    if (pathLen > 0 && straightDist / pathLen > t.straightRatio) {
       return [start, { ...end, pressure: start.pressure }];
     }
 
@@ -495,12 +513,12 @@ const NoteCanvas = (() => {
     const bboxH = Math.max(...ys) - Math.min(...ys);
     const diag = Math.hypot(bboxW, bboxH);
     const closeGap = dist(start, end);
-    const isClosed = diag > 20 && closeGap < diag * 0.3;
+    const isClosed = diag > 20 && closeGap < diag * t.closedGapFactor;
 
     if (isClosed) {
       // Corner count decides polygon vs. circle: a hand-drawn circle/ellipse won't collapse to
       // 3-4 dominant vertices under RDP simplification, but a triangle/rectangle will.
-      const simplified = rdpSimplify(points, diag * 0.06);
+      const simplified = rdpSimplify(points, diag * t.cornerEpsilonFactor);
       const cornerCount = simplified.length - 1; // start and end coincide
 
       if (cornerCount === 3 || cornerCount === 4) {
@@ -512,21 +530,21 @@ const NoteCanvas = (() => {
       const cy = ys.reduce((a, b) => a + b, 0) / ys.length;
       const radii = points.map((p) => Math.hypot(p.x - cx, p.y - cy));
       const avgR = radii.reduce((a, b) => a + b, 0) / radii.length;
-      const variance = radii.reduce((s, r) => s + (r - avgR) ** 2, 0) / radii.length;
+      const variance = radii.reduce((s2, r) => s2 + (r - avgR) ** 2, 0) / radii.length;
       const stdRatio = Math.sqrt(variance) / avgR;
-      if (stdRatio < 0.28 && avgR > 8) {
+      if (stdRatio < t.circleTolerance && avgR > 8) {
         const circlePts = [];
         const n = 48;
         for (let i = 0; i <= n; i++) {
-          const t = (i / n) * Math.PI * 2;
-          circlePts.push({ x: cx + avgR * Math.cos(t), y: cy + avgR * Math.sin(t), pressure: 0.6 });
+          const a = (i / n) * Math.PI * 2;
+          circlePts.push({ x: cx + avgR * Math.cos(a), y: cy + avgR * Math.sin(a), pressure: 0.6 });
         }
         return circlePts;
       }
     }
 
     // open curve smoothing
-    const simplifiedOpen = rdpSimplify(points, diag * 0.02);
+    const simplifiedOpen = rdpSimplify(points, diag * t.curveEpsilonFactor);
     if (simplifiedOpen.length >= 3) {
       return catmullRomSpline(simplifiedOpen);
     }
@@ -575,6 +593,10 @@ const NoteCanvas = (() => {
 
   function setShapeAssist(enabled) {
     shapeAssist = enabled;
+  }
+
+  function setShapeStrength(value) {
+    shapeStrength = Math.min(1, Math.max(0, value));
   }
 
   function undo() {
@@ -711,6 +733,7 @@ const NoteCanvas = (() => {
     setTool,
     setEraseMode,
     setShapeAssist,
+    setShapeStrength,
     undo,
     clearPage,
     newPage,

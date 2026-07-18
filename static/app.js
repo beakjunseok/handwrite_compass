@@ -265,6 +265,12 @@ shapeAssistBtn.addEventListener("click", () => {
   NoteCanvas.setShapeAssist(enabled);
 });
 
+const shapeStrengthEl = document.getElementById("shape-strength");
+shapeStrengthEl.addEventListener("input", () => {
+  NoteCanvas.setShapeStrength(Number(shapeStrengthEl.value) / 100);
+});
+NoteCanvas.setShapeStrength(Number(shapeStrengthEl.value) / 100);
+
 selectionDeleteBtn.addEventListener("click", () => {
   NoteCanvas.deleteSelection();
   selectionDeleteBtn.classList.add("hidden");

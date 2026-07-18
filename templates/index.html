@@ -64,7 +64,11 @@
           <button class="tool-btn" data-tool="eraser" data-erase-mode="stroke" title="닿은 선 전체 지우기">선 지우개</button>
           <button class="tool-btn" data-tool="lasso" title="올가미(선택/이동)">올가미</button>
           <span class="sep"></span>
-          <button id="shape-assist-btn" title="직선/원 자동 보정">도형보정</button>
+          <button id="shape-assist-btn" title="직선/원/삼각형/사각형/곡선 자동 보정">도형보정</button>
+          <label class="strength-control" title="보정 강도: 낮으면 완벽한 도형만, 높으면 적극적으로 스냅">
+            보정 강도
+            <input id="shape-strength" type="range" min="0" max="100" value="50" />
+          </label>
           <button id="selection-delete-btn" class="danger hidden" title="선택 삭제">선택 삭제</button>
           <span class="sep"></span>
           <button id="canvas-undo-btn" title="실행 취소">되돌리기</button>
