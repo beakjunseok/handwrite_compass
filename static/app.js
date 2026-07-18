@@ -248,6 +248,15 @@ document.querySelectorAll(".tool-btn").forEach((btn) => {
   });
 });
 
+const eraserSizeEl = document.getElementById("eraser-size");
+const eraserSizeIndicatorEl = document.getElementById("eraser-size-indicator");
+eraserSizeEl.addEventListener("input", () => {
+  const size = Number(eraserSizeEl.value);
+  NoteCanvas.setEraserSize(size);
+  eraserSizeIndicatorEl.textContent = `${size}px`;
+});
+NoteCanvas.setEraserSize(Number(eraserSizeEl.value));
+
 const penColorPicker = document.getElementById("pen-color-picker");
 const highlighterColorPicker = document.getElementById("highlighter-color-picker");
 

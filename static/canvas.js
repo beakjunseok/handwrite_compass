@@ -10,6 +10,8 @@ const NoteCanvas = (() => {
   let tool = "pen";
   let color = "#1a1a1a";
   let eraseMode = "partial"; // 'partial' | 'stroke'
+  let eraserSize = 26;
+  let hoverPoint = null; // last known pointer position, used to preview eraser size
   let shapeAssist = false;
   let shapeStrength = 0.5; // 0 = light touch-up, 1 = aggressive snapping
   let drawing = false;
@@ -45,6 +47,10 @@ const NoteCanvas = (() => {
     inkCanvas.addEventListener("pointermove", handlePointerMove);
     window.addEventListener("pointerup", handlePointerUp);
     inkCanvas.addEventListener("pointercancel", handlePointerUp);
+    inkCanvas.addEventListener("pointerleave", () => {
+      hoverPoint = null;
+      redraw();
+    });
     inkCanvas.style.touchAction = "none";
 
     viewportEl.addEventListener(
@@ -169,6 +175,7 @@ const NoteCanvas = (() => {
     if (tool === "eraser" && eraseMode === "stroke") {
       drawing = true;
       currentStroke = null;
+      hoverPoint = pt;
       eraseStrokesNear(pt);
       redraw();
       return;
@@ -178,7 +185,7 @@ const NoteCanvas = (() => {
     currentStroke = {
       type: tool,
       color: tool === "eraser" ? null : color,
-      width: tool === "highlighter" ? 20 : tool === "eraser" ? 26 : 3,
+      width: tool === "highlighter" ? 20 : tool === "eraser" ? eraserSize : 3,
       points: [pt],
     };
   }
@@ -194,6 +201,11 @@ const NoteCanvas = (() => {
     if (panState) return;
 
     const pt = toCanvasPoint(evt);
+
+    if (tool === "eraser") {
+      hoverPoint = pt;
+      if (!drawing) redraw();
+    }
 
     if (tool === "lasso") {
       if (movingSelection) {
@@ -315,6 +327,20 @@ const NoteCanvas = (() => {
     const page = pages[pageIndex];
     page.strokes.forEach((stroke) => replayStroke(inkCtx, stroke));
     if (selection) drawSelectionOutline();
+    if (tool === "eraser" && hoverPoint) drawEraserCursor();
+  }
+
+  function drawEraserCursor() {
+    inkCtx.save();
+    inkCtx.strokeStyle = "rgba(0,0,0,0.55)";
+    inkCtx.fillStyle = "rgba(0,0,0,0.06)";
+    inkCtx.lineWidth = 1.5;
+    inkCtx.setLineDash([4, 3]);
+    inkCtx.beginPath();
+    inkCtx.arc(hoverPoint.x, hoverPoint.y, eraserSize / 2, 0, Math.PI * 2);
+    inkCtx.fill();
+    inkCtx.stroke();
+    inkCtx.restore();
   }
 
   function redraw() {
@@ -716,6 +742,15 @@ const NoteCanvas = (() => {
     eraseMode = mode === "stroke" ? "stroke" : "partial";
   }
 
+  function setEraserSize(size) {
+    eraserSize = Math.min(80, Math.max(6, size));
+    if (tool === "eraser") redraw();
+  }
+
+  function getEraserSize() {
+    return eraserSize;
+  }
+
   function pointToSegmentDist(p, a, b) {
     const dx = b.x - a.x;
     const dy = b.y - a.y;
@@ -734,7 +769,7 @@ const NoteCanvas = (() => {
     return false;
   }
 
-  function eraseStrokesNear(pt, radius = 16) {
+  function eraseStrokesNear(pt, radius = eraserSize / 2) {
     const page = pages[pageIndex];
     const remaining = page.strokes.filter((stroke) => !strokeNearPoint(stroke, pt, radius + stroke.width));
     if (remaining.length !== page.strokes.length) {
@@ -883,6 +918,8 @@ const NoteCanvas = (() => {
     init,
     setTool,
     setEraseMode,
+    setEraserSize,
+    getEraserSize,
     setShapeAssist,
     setShapeStrength,
     undo,

@@ -61,6 +61,11 @@
           <input id="highlighter-color-picker" class="color-picker" type="color" value="#ffd93d" data-tool="highlighter" title="형광펜 색상 직접 선택" />
           <span class="sep"></span>
           <button class="tool-btn" data-tool="eraser" data-erase-mode="partial" title="일부만 지우기">지우개</button>
+          <label class="strength-control" title="지우개 크기">
+            지우개 크기
+            <input id="eraser-size" type="range" min="6" max="80" value="26" />
+            <span id="eraser-size-indicator">26px</span>
+          </label>
           <button class="tool-btn" data-tool="eraser" data-erase-mode="stroke" title="닿은 선 전체 지우기">선 지우개</button>
           <button class="tool-btn" data-tool="lasso" title="올가미(선택/이동)">올가미</button>
           <span class="sep"></span>
