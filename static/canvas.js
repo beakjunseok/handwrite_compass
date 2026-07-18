@@ -427,6 +427,152 @@ const NoteCanvas = (() => {
 
   // ---------- shape auto-correction ----------
 
+  // ---- math curve fitting (parabola / rectangular hyperbola) ----
+
+  function solveLinear3(A, b) {
+    const m = [
+      [A[0][0], A[0][1], A[0][2], b[0]],
+      [A[1][0], A[1][1], A[1][2], b[1]],
+      [A[2][0], A[2][1], A[2][2], b[2]],
+    ];
+    for (let i = 0; i < 3; i++) {
+      let maxRow = i;
+      for (let k = i + 1; k < 3; k++) if (Math.abs(m[k][i]) > Math.abs(m[maxRow][i])) maxRow = k;
+      [m[i], m[maxRow]] = [m[maxRow], m[i]];
+      if (Math.abs(m[i][i]) < 1e-9) return null;
+      for (let k = i + 1; k < 3; k++) {
+        const f = m[k][i] / m[i][i];
+        for (let j = i; j < 4; j++) m[k][j] -= f * m[i][j];
+      }
+    }
+    const x = [0, 0, 0];
+    for (let i = 2; i >= 0; i--) {
+      let sum = m[i][3];
+      for (let j = i + 1; j < 3; j++) sum -= m[i][j] * x[j];
+      x[i] = sum / m[i][i];
+    }
+    return x;
+  }
+
+  // Fits v = a*u^2 + b*u + c (a plain quadratic/parabola in whichever axis is passed as u).
+  function fitQuadratic(pts) {
+    const n = pts.length;
+    let S1 = 0, S2 = 0, S3 = 0, S4 = 0, Sv0 = 0, Sv1 = 0, Sv2 = 0;
+    pts.forEach(({ u, v }) => {
+      const u2 = u * u, u3 = u2 * u, u4 = u2 * u2;
+      S1 += u; S2 += u2; S3 += u3; S4 += u4;
+      Sv0 += v; Sv1 += u * v; Sv2 += u2 * v;
+    });
+    const sol = solveLinear3(
+      [[S4, S3, S2], [S3, S2, S1], [S2, S1, n]],
+      [Sv2, Sv1, Sv0]
+    );
+    if (!sol) return null;
+    const [a, b, c] = sol;
+    const vMean = Sv0 / n;
+    let sse = 0, sst = 0;
+    pts.forEach(({ u, v }) => {
+      const pred = a * u * u + b * u + c;
+      sse += (v - pred) ** 2;
+      sst += (v - vMean) ** 2;
+    });
+    return { a, b, c, r2: sst > 0 ? 1 - sse / sst : 0 };
+  }
+
+  // Fits v = k/(u-u0) + v0 (a rectangular hyperbola / inverse-proportion curve), searching for
+  // the asymptote u0 outside the drawn range since it's linear in (k, v0) once u0 is fixed.
+  function fitHyperbola(pts) {
+    const us = pts.map((p) => p.u);
+    const minU = Math.min(...us);
+    const maxU = Math.max(...us);
+    const width = Math.max(maxU - minU, 1e-6);
+    const candidateOffsets = [0.05, 0.1, 0.2, 0.35, 0.5, 0.75, 1, 1.5, 2, 3];
+    const candidates = [];
+    candidateOffsets.forEach((t) => {
+      candidates.push(minU - t * width, maxU + t * width);
+    });
+
+    let best = null;
+    candidates.forEach((u0) => {
+      let Su = 0, Su2 = 0, Sv = 0, Suv = 0;
+      const n = pts.length;
+      for (const { u } of pts) {
+        if (Math.abs(u - u0) < 1e-6) return;
+      }
+      pts.forEach(({ u, v }) => {
+        const uu = 1 / (u - u0);
+        Su += uu; Su2 += uu * uu; Sv += v; Suv += uu * v;
+      });
+      const denomK = n * Su2 - Su * Su;
+      if (Math.abs(denomK) < 1e-9) return;
+      const k = (n * Suv - Su * Sv) / denomK;
+      const v0 = (Sv - k * Su) / n;
+      const vMean = Sv / n;
+      let sse = 0, sst = 0;
+      pts.forEach(({ u, v }) => {
+        const pred = k / (u - u0) + v0;
+        sse += (v - pred) ** 2;
+        sst += (v - vMean) ** 2;
+      });
+      const r2 = sst > 0 ? 1 - sse / sst : 0;
+      if (!best || r2 > best.r2) best = { u0, k, v0, r2 };
+    });
+    return best;
+  }
+
+  // Tries a parabola and an inverse-proportion hyperbola in both axis orientations (so a
+  // sideways parabola like x = y^2, i.e. a sqrt-shaped curve, is caught too) and snaps to
+  // whichever fits best, if it clears minR2.
+  function fitMathCurve(points, minR2) {
+    if (points.length < 8) return null;
+    const start = points[0];
+    const end = points[points.length - 1];
+    const xyPts = points.map((p) => ({ u: p.x, v: p.y }));
+    const yxPts = points.map((p) => ({ u: p.y, v: p.x }));
+
+    const candidates = [];
+    const quadXY = fitQuadratic(xyPts);
+    if (quadXY) candidates.push({ type: "quad-y-of-x", ...quadXY });
+    const quadYX = fitQuadratic(yxPts);
+    if (quadYX) candidates.push({ type: "quad-x-of-y", ...quadYX });
+    const hypXY = fitHyperbola(xyPts);
+    if (hypXY) candidates.push({ type: "hyp-y-of-x", ...hypXY });
+    const hypYX = fitHyperbola(yxPts);
+    if (hypYX) candidates.push({ type: "hyp-x-of-y", ...hypYX });
+    if (candidates.length === 0) return null;
+
+    candidates.sort((a, b) => b.r2 - a.r2);
+    const fit = candidates[0];
+    if (fit.r2 < minR2) return null;
+
+    const n = 48;
+    const result = [];
+    if (fit.type === "quad-y-of-x" || fit.type === "hyp-y-of-x") {
+      const xs = points.map((p) => p.x);
+      const x0 = Math.min(...xs);
+      const x1 = Math.max(...xs);
+      const goingRight = start.x <= end.x;
+      for (let i = 0; i <= n; i++) {
+        const t = i / n;
+        const x = goingRight ? x0 + (x1 - x0) * t : x1 - (x1 - x0) * t;
+        const y = fit.type === "quad-y-of-x" ? fit.a * x * x + fit.b * x + fit.c : fit.k / (x - fit.u0) + fit.v0;
+        result.push({ x, y, pressure: 0.6 });
+      }
+    } else {
+      const ys = points.map((p) => p.y);
+      const y0 = Math.min(...ys);
+      const y1 = Math.max(...ys);
+      const goingDown = start.y <= end.y;
+      for (let i = 0; i <= n; i++) {
+        const t = i / n;
+        const y = goingDown ? y0 + (y1 - y0) * t : y1 - (y1 - y0) * t;
+        const x = fit.type === "quad-x-of-y" ? fit.a * y * y + fit.b * y + fit.c : fit.k / (y - fit.u0) + fit.v0;
+        result.push({ x, y, pressure: 0.6 });
+      }
+    }
+    return result;
+  }
+
   function rdpSimplify(points, epsilon) {
     if (points.length < 3) return points;
     let maxDist = 0;
@@ -490,6 +636,7 @@ const NoteCanvas = (() => {
       circleTolerance: lerp(0.15, 0.4, s), // higher = looser circle match
       closedGapFactor: lerp(0.15, 0.45, s), // higher = more paths count as "closed"
       curveEpsilonFactor: lerp(0.008, 0.035, s), // higher = more aggressive curve smoothing
+      curveFitMinR2: lerp(0.995, 0.85, s), // higher = math curve fit must be near-perfect
     };
   }
 
@@ -542,6 +689,10 @@ const NoteCanvas = (() => {
         return circlePts;
       }
     }
+
+    // parabola (y=ax^2+bx+c or sideways, which also covers sqrt-shaped curves) / inverse-proportion hyperbola
+    const mathCurve = fitMathCurve(points, t.curveFitMinR2);
+    if (mathCurve) return mathCurve;
 
     // open curve smoothing
     const simplifiedOpen = rdpSimplify(points, diag * t.curveEpsilonFactor);
