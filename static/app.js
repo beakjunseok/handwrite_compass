@@ -87,6 +87,25 @@ async function apiFetch(url, options = {}) {
   return res;
 }
 
+async function friendlyErrorMessage(res) {
+  const contentType = res.headers.get("content-type") || "";
+  if (!contentType.includes("application/json")) {
+    if (res.status === 504 || res.status === 502) {
+      return "서버 응답 시간이 초과됐습니다 (AI 분석이 너무 오래 걸렸을 수 있어요). 페이지 수를 줄이거나 잠시 후 다시 시도해주세요.";
+    }
+    if (res.status === 413) {
+      return "필기 용량이 너무 큽니다. 페이지 수를 줄이거나 나눠서 저장해주세요.";
+    }
+    return `서버 오류 (HTTP ${res.status}). 잠시 후 다시 시도해주세요.`;
+  }
+  try {
+    const data = await res.json();
+    return data.error || `저장 실패 (HTTP ${res.status})`;
+  } catch (e) {
+    return `저장 실패 (HTTP ${res.status})`;
+  }
+}
+
 function showAuth() {
   loginView.classList.remove("hidden");
   appView.classList.add("hidden");
@@ -390,7 +409,7 @@ async function saveNote({ silent = false } = {}) {
   if (!silent) saveStatusEl.textContent = "AI가 분석하는 중...";
   try {
     const res = await apiFetch("/api/notes", { method: "POST", body: JSON.stringify(body) });
-    if (!res.ok) throw new Error((await res.json()).error || "저장 실패");
+    if (!res.ok) throw new Error(await friendlyErrorMessage(res));
     const note = await res.json();
     editingNoteId = note.id;
     await refreshList();
@@ -517,8 +536,7 @@ async function saveNoteField(fields) {
       body: JSON.stringify(fields),
     });
     if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      alert("저장 실패: " + (err.error || res.status));
+      alert("저장 실패: " + (await friendlyErrorMessage(res)));
       return false;
     }
     return true;
@@ -565,7 +583,7 @@ quizBtn.addEventListener("click", async () => {
   quizContainer.innerHTML = `<p class="status">퀴즈 생성 중...</p>`;
   try {
     const res = await apiFetch(`/api/notes/${activeNoteId}/quiz`, { method: "POST" });
-    if (!res.ok) throw new Error((await res.json()).error || "퀴즈 생성 실패");
+    if (!res.ok) throw new Error(await friendlyErrorMessage(res));
     const quiz = await res.json();
     renderQuiz(quiz.questions);
   } catch (err) {
