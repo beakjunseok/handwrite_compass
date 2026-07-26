@@ -1,9 +1,11 @@
 import os
+import traceback
 
 from dotenv import load_dotenv
 from flask import Flask, jsonify, render_template, request
 from flask_cors import CORS
 from supabase import create_client
+from werkzeug.exceptions import HTTPException
 
 import gemini
 
@@ -265,6 +267,14 @@ def get_quiz(quiz_id):
 @app.errorhandler(RuntimeError)
 def handle_runtime_error(err):
     return jsonify({"error": str(err)}), 503
+
+
+@app.errorhandler(Exception)
+def handle_any_error(err):
+    if isinstance(err, HTTPException):
+        return err
+    traceback.print_exc()
+    return jsonify({"error": str(err)}), 500
 
 
 if __name__ == "__main__":
